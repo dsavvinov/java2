@@ -1,8 +1,10 @@
 package ru.spbau.mit.net;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.spbau.mit.io.Logger;
 import ru.spbau.mit.io.LoggerFactory;
+import ru.spbau.mit.server.Item;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -12,6 +14,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
+import java.util.List;
 
 public class TypedSocket {
     private static final CharsetEncoder encoder = Charset.forName("UTF-16").newEncoder();
@@ -66,5 +69,11 @@ public class TypedSocket {
         String objAsJSON = readString();
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(objAsJSON, clazz);
+    }
+
+    public List<Item> readListOfItems() throws IOException {
+        String objAsJSON = readString();
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(objAsJSON, new TypeReference<List<Item>>(){});
     }
 }

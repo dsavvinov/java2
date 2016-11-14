@@ -13,7 +13,6 @@ import java.util.concurrent.Executors;
 
 public class Server {
     // Constants
-    private static final String SERVER_ADDRESS = "localhost";
     private static final int SERVER_PORT = 8228;
 
     // Utility
@@ -22,11 +21,11 @@ public class Server {
     private final ExecutorService threadPool = Executors.newFixedThreadPool(4);
 
     public void start() throws IOException {
-        ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-
-        serverSocketChannel.socket().bind(new InetSocketAddress(SERVER_PORT));
-        Storage.initHere();
+        ServerSocketChannel serverSocketChannel = null;
         try {
+            serverSocketChannel = ServerSocketChannel.open();
+            Storage.initHere();
+            serverSocketChannel.socket().bind(new InetSocketAddress(SERVER_PORT));
             while (!Thread.interrupted()) {
                 log.trace("Server: listening for connections...");
                 SocketChannel clientSocketChannel = serverSocketChannel.accept();
@@ -35,7 +34,9 @@ public class Server {
                 threadPool.execute(new ClientHandler(log, clientSocketChannel));
             }
         } finally {
-            serverSocketChannel.close();
+            if (serverSocketChannel != null) {
+                serverSocketChannel.close();
+            }
         }
 
     }

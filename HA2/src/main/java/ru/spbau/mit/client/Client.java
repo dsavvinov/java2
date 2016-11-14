@@ -4,6 +4,7 @@ import ru.spbau.mit.io.Logger;
 import ru.spbau.mit.io.LoggerFactory;
 import ru.spbau.mit.net.Query;
 import ru.spbau.mit.net.TypedSocket;
+import ru.spbau.mit.server.Item;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.List;
 
 import static ru.spbau.mit.io.Utils.createFile;
 import static ru.spbau.mit.net.Query.GET_CMD;
@@ -30,8 +32,6 @@ public class Client {
     private SocketChannel socketChannel;
     private TypedSocket typedSocket;
 
-    public Client() { }
-
     public void connect() throws IOException {
         socketChannel = SocketChannel.open();
         typedSocket = new TypedSocket(socketChannel);
@@ -42,15 +42,15 @@ public class Client {
         log.trace("Client ctor: connected successfully!");
     }
 
-    public ArrayList<String> getList() throws IOException {
+    public List<Item> getList(String folderName) throws IOException {
         log.trace("Client: Querying list of files from server...");
-        typedSocket.writeObject(new Query(LIST_CMD));
+        typedSocket.writeObject(new Query(LIST_CMD, folderName));
         log.trace("Client: Query sent successfully");
 
         log.trace("Client: Reading list of files...");
-        Object result = typedSocket.readObject();
+        List<Item> result = typedSocket.readListOfItems();
         log.trace("Client: Read successfully");
-        return (ArrayList<String>) result;
+        return result;
     }
 
     public void getFile(String fileName) throws IOException {

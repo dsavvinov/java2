@@ -9,9 +9,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 
@@ -39,14 +37,14 @@ public class ClientHandler implements Runnable{
             switch (query.getName()) {
                 case LIST_CMD:
                     log.trace(handlerName + ": Processing <List> command");
-                    ArrayList<String> files = Storage.getFilesList();
+                    ArrayList<Item> files = Storage.getFilesList(query.getArg());
                     typedSocket.writeObject(files);
                     log.trace(handlerName + ": Sent files list");
                     clientSocket.close();
                     break;
 
                 case GET_CMD:
-                    String fileName = query.getFile();
+                    String fileName = query.getArg();
                     log.trace(handlerName + ": Processing <Get " + fileName + ">");
 
                     Path filePath = Storage.getAbsolutePath(fileName);

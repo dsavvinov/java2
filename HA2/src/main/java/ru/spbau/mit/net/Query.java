@@ -5,11 +5,12 @@ public class Query {
     public static final String GET_CMD = "get";
 
     private final String name;
-    private String file = null;
+    private String arg = null;
 
+    // Dummy default ctor fot Jackson
     public Query() {
         name = null;
-        file = null;
+        arg = null;
     }
 
     public Query(String name) {
@@ -18,14 +19,14 @@ public class Query {
 
     public Query(String name, String file) {
         this(name);
-        this.file = file;
+        this.arg = file;
     }
 
     public String getName() {
         return name;
     }
 
-    public String getFile() {
-        return file;
+    public String getArg() {
+        return arg;
     }
 }

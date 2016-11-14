@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 class Storage {
@@ -20,11 +21,14 @@ class Storage {
         }
     }
 
-    static ArrayList<String> getFilesList() throws IOException {
-        return Files.walk(root, 1)
-                .filter(it -> !Files.isDirectory(it))
-                .map(it -> root.relativize(it))
-                .map(Path::toString)
+    static ArrayList<Item> getFilesList(String arg) throws IOException {
+        Path folder = root.resolve(arg);
+        if (Files.notExists(folder) || !Files.isDirectory(folder)) {
+            return new ArrayList<>();
+        }
+
+        return Files.walk(folder, 1)
+                .map(it -> new Item(root.relativize(it).toString(), Files.isDirectory(it)))
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 

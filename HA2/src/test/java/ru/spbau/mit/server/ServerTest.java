@@ -6,10 +6,13 @@ import org.junit.internal.runners.statements.Fail;
 import ru.spbau.mit.client.Client;
 
 import java.io.FileInputStream;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -25,7 +28,11 @@ public class ServerTest {
             try {
                 Server server = new Server();
                 server.start();
+            } catch (ClosedByInterruptException e) {
+                // shut down gracefully
+                return;
             } catch (Exception e) {
+                // unexpected exception, rethrow
                 throw new RuntimeException(e);
             }
         });
@@ -35,19 +42,22 @@ public class ServerTest {
 
         Client client = new Client();
         client.connect();
-        ArrayList<String> actual = client.getList();
+        List<Item> actual = client.getList("./");
 
-        ArrayList<String> expected = new ArrayList<>();
-        expected.add("empty_file");
-        expected.add("file1");
-        expected.add("file2");
-        expected.add("file3_with_long_name");
+        List<String> expected = new ArrayList<>(Arrays.asList(
+            ".",
+            "./empty_file",
+            "./file1",
+            "./file2",
+            "./file3_with_long_name"
+        ));
 
-        assertEquals(actual.size(), expected.size());
-        expected.forEach( it -> assertTrue(actual.contains(it)) );
+        assertEquals(expected.size(), actual.size());
+        actual.stream().map(Item::getPath).forEach( it -> assertTrue(expected.contains(it)));
 
         client.shutdown();
         serverThread.interrupt();
+        serverThread.join();
     }
 
     @Test
@@ -60,7 +70,11 @@ public class ServerTest {
             try {
                 Server server = new Server();
                 server.start();
+            } catch (ClosedByInterruptException e) {
+                // shut down gracefully
+                return;
             } catch (Exception e) {
+                // unexpected exception, rethrow
                 throw new RuntimeException(e);
             }
         });
@@ -78,10 +92,16 @@ public class ServerTest {
 
         FileInputStream fis = new FileInputStream(downloadPath.toFile());
         String actualMD5 = DigestUtils.md5Hex(fis);
+        fis.close();
 
         fis = new FileInputStream(sourcePath.toFile());
         String expectedMD5 = DigestUtils.md5Hex(fis);
+        fis.close();
 
         assertEquals(expectedMD5, actualMD5);
+
+        serverThread.interrupt();
+        client.shutdown();
+        serverThread.join();
     }
 }
