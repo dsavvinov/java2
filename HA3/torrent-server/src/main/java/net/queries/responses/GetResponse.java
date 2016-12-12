@@ -1,8 +1,8 @@
-package net.responses;
+package net.queries.responses;
 
 import java.nio.channels.FileChannel;
 
-public class GetResponseData {
+public class GetResponse {
     private FileChannel fc;
     private long offset;
     private long size;
@@ -19,7 +19,9 @@ public class GetResponseData {
         return size;
     }
 
-    public GetResponseData(FileChannel fc, long offset, long size) {
+    public GetResponse() { }
+
+    public GetResponse(FileChannel fc, long offset, long size) {
         this.fc = fc;
         this.offset = offset;
         this.size = size;

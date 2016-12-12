@@ -1,9 +1,8 @@
 package core.client;
 
-import exceptions.NotImplementedYet;
 import io.Logger;
 import io.StandardLogger;
-import net.responses.*;
+import net.queries.responses.*;
 
 import java.util.Scanner;
 import java.util.stream.Collectors;
@@ -25,7 +24,7 @@ public class ClientCLI {
             return;
         }
 
-        Client client = new Client(clientPort);
+        Client client = new Client(clientPort, System.getProperty("user.dir"));
 
         log.trace("Connecting to server");
         client.initClient();
@@ -41,32 +40,32 @@ public class ClientCLI {
                     client.shutdown();
                     return;
                 case "list":
-                    ListResponseData list = client.executeListCommand();
+                    ListResponse list = client.executeListCommand();
                     log.info("List of files:");
                     log.info(String.join("\n", list
                             .stream()
-                            .map(ListResponseData.ListResponseItem::toString)
+                            .map(ListResponse.ListResponseItem::toString)
                             .collect(Collectors.toList())
                     ));
                     break;
                 case "sources":
-                    SourcesResponseData sources = client.executeSourcesCommand(commandArgs[1]);
+                    SourcesResponse sources = client.executeSourcesCommand(commandArgs[1]);
                     log.info("File sources are:");
                     log.info(String.join("\n", sources
                             .stream()
-                            .map(SourcesResponseData.Source::toString)
+                            .map(SourcesResponse.Source::toString)
                             .collect(Collectors.toList()))
                     );
                     break;
                 case "upload":
-                    UploadResponseData id = client.executeUploadCommand(commandArgs[1]);
+                    UploadResponse id = client.executeUploadCommand(commandArgs[1]);
                     log.info("Got id = " + id.getId());
                     break;
                 case "update":
-                    UpdateResponseData status = client.executeUpdateCommand();
+                    UpdateResponse status = client.executeUpdateCommand();
                     break;
                 case "stat":
-                    StatResponseData stat = client.executeStatCommand(commandArgs[1], commandArgs[2], commandArgs[3]);
+                    StatResponse stat = client.executeStatCommand(commandArgs[1], commandArgs[2], commandArgs[3]);
                     log.info("Following parts are available:");
                     for (int i = 0; i < stat.getParts().length; i++) {
                         log.info(Integer.toString(stat.getParts()[i]));

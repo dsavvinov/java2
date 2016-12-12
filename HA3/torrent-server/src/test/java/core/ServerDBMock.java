@@ -8,7 +8,7 @@ import database.server.UserEntity;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static net.responses.SourcesResponseData.Source;
+import static net.queries.responses.SourcesResponse.Source;
 
 public class ServerDBMock implements ServerDatabase {
     public HashMap<Integer, HashSet<Source>> filesToSources = new HashMap<>();
@@ -98,13 +98,13 @@ public class ServerDBMock implements ServerDatabase {
 
     /** Some constants */
 
-    private static final FileEntity file1 = new FileEntity(0, "file1", 10);
-    private static final FileEntity file2 = new FileEntity(1, "file2", 42);
-    private static final FileEntity file3 = new FileEntity(2, "file3", 228);
-    private static final FileEntity file4 = new FileEntity(3, "file4", 1337);
+    public static final FileEntity file1 = new FileEntity(0, "file1", 10);
+    public static final FileEntity file2 = new FileEntity(1, "file2", 42);
+    public static final FileEntity file3 = new FileEntity(2, "file3", 228);
+    public static final FileEntity file4 = new FileEntity(3, "file4", 1337);
 
-    private static final Source user1 = new Source((short) 1, "user_1");
-    private static final Source user2 = new Source((short) 2, "user_2");
-    private static final Source user3 = new Source((short) 3, "user_3");
+    public static final Source user1 = new Source((short) 1, "user_1");
+    public static final Source user2 = new Source((short) 2, "user_2");
+    public static final Source user3 = new Source((short) 3, "user_3");
 
 }

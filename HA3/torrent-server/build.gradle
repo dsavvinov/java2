@@ -62,5 +62,8 @@ dependencies {
     // powermock for JUnit
     compile group: 'org.powermock', name: 'powermock-module-junit4', version: '1.6.5'
 
+    // For testing
+    compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
+    compile group: 'commons-io', name: 'commons-io', version: '2.5'
 
 }

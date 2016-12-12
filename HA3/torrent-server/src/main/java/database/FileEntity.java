@@ -18,6 +18,8 @@ public class FileEntity {
     private long size;
 
     private List<Seed> seededBy = new LinkedList<>();
+
+    // Used for seeds-db. Records in server DB dont have this field set.
     private String localPath;
 
     public String getLocalPath() {

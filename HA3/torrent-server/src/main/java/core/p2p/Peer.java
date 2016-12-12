@@ -1,15 +1,13 @@
-package core.client;
+package core.p2p;
 
-import exceptions.NotImplementedYet;
+import core.client.Client;
 import io.Logger;
 import io.StandardLogger;
-import utils.Constants;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.SocketException;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
@@ -17,12 +15,14 @@ import java.util.concurrent.Executors;
 
 public class Peer implements Runnable {
     private final Client parent;
-    private final Logger log = StandardLogger.getInstance();
+    private Logger log = StandardLogger.getInstance();
     private final String PREFIX = "[Peer-server]";
     private final ExecutorService threadPool = Executors.newFixedThreadPool(100);
-
-    public Peer(Client client) {
+    private final String rootDir;
+    public Peer(Client client, Logger log, String rootDir) {
         parent = client;
+        this.log = log;
+        this.rootDir = rootDir;
     }
 
     @Override
@@ -44,10 +44,18 @@ public class Peer implements Runnable {
         while (!parent.shutdown) {
             try {
                 SocketChannel peerSocket = serverSocket.accept();
-                threadPool.execute(new PeerHandler(peerSocket, log));
-            } catch (IOException e) {
+                threadPool.execute(new PeerHandler(peerSocket, log, rootDir));
+            } catch (ClosedByInterruptException ignored) {
+            }
+            catch (IOException e) {
                 log.error(PREFIX + " IO Error: " + e.getMessage());
             }
+        }
+
+        try {
+            serverSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

@@ -1,22 +1,26 @@
 package core.client;
 
+import core.p2p.Peer;
 import database.DatabaseProvider;
 import database.FileEntity;
 import database.client.ClientDatabase;
 import exceptions.InvalidProtocolException;
-import exceptions.WrongArgumentException;
 import io.Logger;
 import io.StandardLogger;
-import net.ClientServerProtocol;
-import net.Peer2PeerProtocol;
-import net.requests.*;
-import net.responses.*;
+import net.Message;
+import net.protocols.ClientServerProtocol;
+import net.protocols.Peer2PeerProtocol;
+import net.queries.StatQuery;
+import net.queries.requests.*;
+import net.queries.responses.*;
 import utils.Constants;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
@@ -25,59 +29,64 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 
-import static utils.Constants.BLOCK_SIZE;
-import static utils.Constants.SERVER_ADDRESS;
-import static utils.Constants.SERVER_PORT;
+import static utils.Constants.*;
 
 public class Client {
     public final short clientPort;
+    public volatile boolean shutdown = false;    // for terminating update-thread
+
+    private String rootDir;
     private Logger log = StandardLogger.getInstance();
     private Thread updaterThread = null;
     private Thread peerServerThread = null;
+    private ClientServerProtocol clientServerProtocol = new ClientServerProtocol();
+    private Peer2PeerProtocol p2pProtocol = new Peer2PeerProtocol();
 
-    volatile boolean shutdown = false;    // for terminating update-thread
-
-    public Client(short clientPort) {
+    public Client(short clientPort, String rootDir) {
         this.clientPort = clientPort;
+        this.rootDir = rootDir;
     }
 
-    public Client(short clientPort, Logger log) {
+    public Client(short clientPort, String rootDir, Logger log) {
         this.clientPort = clientPort;
+        this.rootDir = rootDir;
         this.log = log;
     }
 
-    public Response interact(Request request) {
+    public Message interact(Message request) {
         try (Socket serverSocket = new Socket(SERVER_ADDRESS, SERVER_PORT)) {
             log.trace("Sending request <" + request.toString() + ">");
-            ClientServerProtocol.writeRequest(request, serverSocket.getOutputStream());
+            clientServerProtocol.writeRequest(request, serverSocket.getOutputStream());
             log.trace("Sent successfully, waiting for response...");
-            Response response = ClientServerProtocol.readResponse(request.getType(), serverSocket.getInputStream());
+
+            Message response = clientServerProtocol.readResponse(request.getQuery(), serverSocket.getInputStream());
             log.trace("Got response <" + response.toString() + ">");
+
             log.trace("Closing connection");
             return response;
         } catch (UnknownHostException e) {
             log.error("Error: unknown host");
         } catch (IOException e) {
             log.error("IO Error: " + e.getMessage());
-        } catch (WrongArgumentException | InvalidProtocolException e) {
+        } catch (InvalidProtocolException e) {
             log.error(e.getMessage());
         }
         return null;
     }
 
-    public UploadResponseData executeUploadCommand(String pathToFile) {
-        Path curDir = Paths.get(System.getProperty("user.dir"));
+    public UploadResponse executeUploadCommand(String pathToFile) {
+        Path curDir = Paths.get(rootDir);
         Path path = curDir.resolve(pathToFile);
         long size = path.toFile().length();
         String name = path.getFileName().toString();
 
-        Request request = new Request(RequestType.UPLOAD, new UploadRequestData(name, size));
-        Response response = interact(request);
+        Message request = new UploadRequest(name, size);
+        Message response = interact(request);
         if (response == null) {
             return null;
         }
 
-        UploadResponseData data = (UploadResponseData) response.getData();
+        UploadResponse data = (UploadResponse) response;
 
         ClientDatabase db = DatabaseProvider.getClientDB();
         FileEntity file = new FileEntity(data.getId(), name, size);
@@ -88,41 +97,14 @@ public class Client {
         return data;
     }
 
-    public SourcesResponseData executeSourcesCommand(String fileId) {
-        int requestedId = Integer.parseInt(fileId);
-        Request r = new Request(RequestType.SOURCES, new SourcesRequestData(requestedId));
-        Response response = interact(r);
-        if (response == null) {
-            return null;
-        }
-
-        return (SourcesResponseData) response.getData();
-    }
-
-    public ListResponseData executeListCommand() {
-        Request request = new Request(RequestType.LIST, new ListRequestData());
-        Response response = interact(request);
-        if (response == null) {
-            return null;
-        }
-
-        ClientDatabase clientDB = DatabaseProvider.getClientDB();
-        ((ListResponseData) response.getData()).forEach(it -> {
-            FileEntity file = new FileEntity(it.id, it.name, it.size);
-            file.setLocalPath(it.name);
-            clientDB.addFile(file);
-        });
-
-        return (ListResponseData) response.getData();
-    }
-
     public void initClient() {
-        updaterThread = new Thread(new Updater(this));
-        peerServerThread = new Thread(new Peer(this));
+        updaterThread = new Thread(new Updater(this, log));
+        peerServerThread = new Thread(new Peer(this, log, rootDir));
         updaterThread.start();
         peerServerThread.start();
     }
 
+    @SuppressWarnings("Duplicates")
     public void shutdown() {
         shutdown = true;
 
@@ -139,34 +121,52 @@ public class Client {
         }
 
         if (peerServerThread != null) {
-            // shutdown peer server
+            peerServerThread.interrupt();
+            while (peerServerThread.isAlive()) {
+                try {
+                    peerServerThread.join();
+                } catch (InterruptedException ignored) { }
+            }
         }
     }
 
-    public UpdateResponseData executeUpdateCommand() {
+    public SourcesResponse executeSourcesCommand(String fileId) {
+        int requestedId = Integer.parseInt(fileId);
+        Message r = new SourcesRequest(requestedId);
+        return (SourcesResponse) interact(r);
+    }
+
+    public ListResponse executeListCommand() {
+        Message request = new ListRequest();
+        ListResponse response = (ListResponse) interact(request);
+        if (response == null) {
+            return null;
+        }
+
+        ClientDatabase clientDB = DatabaseProvider.getClientDB();
+        return response;
+    }
+
+    public UpdateResponse executeUpdateCommand() {
         ClientDatabase db = DatabaseProvider.getClientDB();
         List<FileEntity> seededFiles = db.listSeededFiles();
 
         int[] ids = seededFiles.stream().mapToInt(FileEntity::getId).toArray();
 
-        Request request = new Request(
-                RequestType.UPDATE, new UpdateRequestData(clientPort, ids)
-        );
+        Message request = new UpdateRequest(clientPort, ids);
 
-        Response response = interact(request);
-        return (UpdateResponseData) response.getData();
+        return (UpdateResponse) interact(request);
     }
 
-    public StatResponseData executeStatCommand(String address, String sport, String sid) {
+    public StatResponse executeStatCommand(String address, String sport, String sid) {
         int id = Integer.parseInt(sid);
         int port = Integer.parseInt(sport);
-        Request request = new Request(RequestType.STAT, new StatRequestData(id));
+        Message request = new StatRequest(id);
 
         try(Socket socket = new Socket(InetAddress.getByName(address), port)) {
-            Peer2PeerProtocol.writeRequest(request, socket.getOutputStream());
-            Response response = Peer2PeerProtocol.readResponse(request.getType(), socket.getInputStream());
-            return (StatResponseData) response.getData();
-        } catch (IOException | WrongArgumentException | InvalidProtocolException e) {
+            p2pProtocol.writeRequest(request, socket.getOutputStream());
+            return (StatResponse) p2pProtocol.readResponse(new StatQuery(), socket.getInputStream());
+        } catch (IOException | InvalidProtocolException e) {
             log.error(e.toString());
             return null;
         }
@@ -177,6 +177,7 @@ public class Client {
         int part = Integer.parseInt(spart);
         int port = Integer.parseInt(sport);
         InetAddress inetAddress = null;
+
         try {
             inetAddress = InetAddress.getByName(address);
         } catch (UnknownHostException e) {
@@ -184,38 +185,45 @@ public class Client {
             return;
         }
 
+        // We retrieve list of all files from the server to get file name
+        ListResponse listResponse = executeListCommand();
+
         // Boring Disk IO
         ClientDatabase clientDatabase = DatabaseProvider.getClientDB();
         FileEntity fileEntity = clientDatabase.getFile(id);
         FileChannel fc;
+        Path localPath;
         long offset = part * Constants.BLOCK_SIZE;
         try {
-            Path relPath = Paths.get(fileEntity.getLocalPath());
-            Path cur = Paths.get(System.getProperty("user.dir"));
-            Path path = cur.resolve(relPath);
-            log.info(path.toString());
-            if (Files.notExists(path)) {
-                Files.createFile(path);
-                RandomAccessFile raFile = new RandomAccessFile(path.toFile(), "rw");
+            Path cur = Paths.get(rootDir);
+            localPath = cur.resolve(fileEntity.getName());
+
+            if (Files.notExists(localPath)) {
+                Files.createDirectories(localPath.getParent());
+                Files.createFile(localPath);
+                RandomAccessFile raFile = new RandomAccessFile(localPath.toFile(), "rw");
                 raFile.setLength(fileEntity.getSize());
             }
-            fc = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
+            fc = FileChannel.open(localPath, StandardOpenOption.READ, StandardOpenOption.WRITE);
         } catch (IOException e) {
             log.error(e.toString());
             return;
         }
 
-        Request request = new Request(RequestType.GET, new GetRequestData(id, part));
+        // Actual downloading
+        Message request = new GetRequest(id, part);
 
         log.trace("Connecting to " + inetAddress + "/" + port);
         try(SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(inetAddress, port))) {
-            Peer2PeerProtocol.writeRequest(request, socketChannel.socket().getOutputStream());
+            p2pProtocol.writeRequest(request, socketChannel.socket().getOutputStream());
             long partSize = Math.min(fileEntity.getSize() - offset, BLOCK_SIZE);
-            fc.transferFrom(socketChannel, offset, BLOCK_SIZE);
+            fc.transferFrom(socketChannel, offset, partSize);
         } catch (IOException e) {
             log.error("Error: can't open connection with peer " + e.getMessage());
-        } catch (WrongArgumentException e) {
-            e.printStackTrace();
+            return;
         }
+
+        // Adding to
+
     }
 }

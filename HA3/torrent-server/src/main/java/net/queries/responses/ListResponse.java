@@ -1,5 +1,12 @@
-package net.responses;
+package net.queries.responses;
 
+import exceptions.InvalidProtocolException;
+import net.Message;
+import net.MessageHandler;
+import net.Query;
+import net.queries.ListQuery;
+
+import java.io.*;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -7,7 +14,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ListResponseData {
+public class ListResponse implements Message {
     private ArrayList<ListResponseItem> items = new ArrayList<>();
 
     public static class ListResponseItem {
@@ -50,7 +57,63 @@ public class ListResponseData {
         return String.join("; ", files);
     }
 
-    /** delegate methods **/
+    @Override
+    public void readFrom(InputStream is) throws InvalidProtocolException {
+        DataInputStream in = new DataInputStream(is);
+
+        try {
+            int count = in.readInt();
+            for (int i = 0; i < count; i++) {
+                int id = in.readInt();
+                String name = in.readUTF();
+                long size = in.readLong();
+
+                items.add(new ListResponse.ListResponseItem(id, name, size));
+            }
+        } catch (IOException e) {
+            throw new InvalidProtocolException("Format error during reading request: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void writeTo(OutputStream os) throws IOException {
+        DataOutputStream out = new DataOutputStream(os);
+
+        out.writeInt(items.size());
+
+        for (ListResponseItem item : items) {
+            out.writeInt(item.id);
+            out.writeUTF(item.name);
+            out.writeLong(item.size);
+        }
+    }
+
+    @Override
+    public Query getQuery() {
+        return new ListQuery();
+    }
+
+    @Override
+    public <T> T dispatch(MessageHandler<T> handler) {
+        return handler.handle(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ListResponse that = (ListResponse) o;
+
+        return items != null ? items.equals(that.items) : that.items == null;
+    }
+
+    @Override
+    public int hashCode() {
+        return items != null ? items.hashCode() : 0;
+    }
+
+    /** Auto-generated methods: delegate ArrayList by items **/
     public void trimToSize() {
         items.trimToSize();
     }
@@ -77,6 +140,11 @@ public class ListResponseData {
 
     public int lastIndexOf(Object o) {
         return items.lastIndexOf(o);
+    }
+
+    @Override
+    public Object clone() {
+        return items.clone();
     }
 
     public Object[] toArray() {
@@ -167,17 +235,7 @@ public class ListResponseData {
         items.sort(c);
     }
 
-    public boolean containsAll(Collection<?> c) {
-        return items.containsAll(c);
-    }
-
     public Stream<ListResponseItem> stream() {
         return items.stream();
     }
-
-    public Stream<ListResponseItem> parallelStream() {
-        return items.parallelStream();
-    }
-
-    /** end of delegate methods **/
 }

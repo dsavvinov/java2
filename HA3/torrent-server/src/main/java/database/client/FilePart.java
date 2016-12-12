@@ -10,7 +10,7 @@ public class FilePart {
     private final long size;
 
     @Id
-    private final long partID;
+    private final long partID;  // used in MongoDB
 
     public FilePart() {
         fileID = 0;

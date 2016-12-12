@@ -1,8 +1,16 @@
 package net;
 
 import exceptions.InvalidProtocolException;
-import net.requests.*;
-import net.responses.*;
+import net.protocols.ClientServerProtocol;
+import net.queries.UploadQuery;
+import net.queries.requests.ListRequest;
+import net.queries.requests.SourcesRequest;
+import net.queries.requests.UpdateRequest;
+import net.queries.requests.UploadRequest;
+import net.queries.responses.ListResponse;
+import net.queries.responses.SourcesResponse;
+import net.queries.responses.UpdateResponse;
+import net.queries.responses.UploadResponse;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -11,41 +19,21 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.util.Arrays;
 
+import static net.Util.assertWriteReadIdentity;
+
 public class ClientServerProtocolTest {
-    private void assertWriteReadIdentity(Request initialRequest) throws Exception {
-        ByteArrayOutputStream os = new ByteArrayOutputStream(10000);
-        ClientServerProtocol.writeRequest(initialRequest, os);
-
-        InputStream is = new ByteArrayInputStream(os.toByteArray());
-        Request readRequest = ClientServerProtocol.readRequest(is);
-
-        RequestsComparison.assertRequestsEqual(initialRequest, readRequest);
-    }
-
-    private void assertWriteReadIdentity(Response initialResponse) throws Exception {
-        ByteArrayOutputStream os = new ByteArrayOutputStream(10000);
-        ClientServerProtocol.writeResponse(initialResponse, os);
-
-        InputStream is = new ByteArrayInputStream(os.toByteArray());
-        Response readResponse = ClientServerProtocol.readResponse(initialResponse.getType(), is);
-
-        ResponseComparison.assertResponsesEqual(initialResponse, readResponse);
-    }
+    private ClientServerProtocol clientServerProtocol = new ClientServerProtocol();
 
     @Test
     public void ListRequestTest() throws Exception {
-        ListRequestData requestData = new ListRequestData();
-        Request listRequest = new Request(RequestType.LIST, requestData);
-
-        assertWriteReadIdentity(listRequest);
+        ListRequest listRequest = new ListRequest();
+        assertWriteReadIdentity(clientServerProtocol, listRequest, true);
     }
 
     @Test
     public void SourceRequestTest() throws Exception {
-        SourcesRequestData requestData = new SourcesRequestData(42);
-        Request r = new Request(RequestType.SOURCES, requestData);
-
-        assertWriteReadIdentity(r);
+        SourcesRequest sourcesRequest = new SourcesRequest(42);
+        assertWriteReadIdentity(clientServerProtocol, sourcesRequest, true);
     }
 
     @Test
@@ -53,71 +41,63 @@ public class ClientServerProtocolTest {
         int[] arr = PimpedRandom.nextIntArr();
         Arrays.setAll(arr, operand -> PimpedRandom.nextInt());
 
-        UpdateRequestData requestData = new UpdateRequestData(
+        UpdateRequest updateRequest = new UpdateRequest(
                 (short) PimpedRandom.nextInt(Short.MAX_VALUE),
                 arr
         );
 
-        Request r = new Request(RequestType.UPDATE, requestData);
-
-        assertWriteReadIdentity(r);
+        assertWriteReadIdentity(clientServerProtocol, updateRequest, true);
     }
 
     @Test
     public void UploadRequestTest() throws Exception {
-        UploadRequestData requestData = new UploadRequestData(PimpedRandom.nextString(), PimpedRandom.nextLong());
-        Request r = new Request(RequestType.UPLOAD, requestData);
-
-        assertWriteReadIdentity(r);
+        UploadRequest uploadRequest = new UploadRequest(PimpedRandom.nextString(), PimpedRandom.nextLong());
+        assertWriteReadIdentity(clientServerProtocol, uploadRequest, true);
     }
 
     @Test
     public void ListResponseTest() throws Exception {
-        ListResponseData responseData = new ListResponseData();
+        ListResponse listResponse = new ListResponse();
+
         int count = PimpedRandom.nextInt(1000);
         for (int i = 0; i < count; i++) {
-            ListResponseData.ListResponseItem item = new ListResponseData.ListResponseItem(
+            ListResponse.ListResponseItem item = new ListResponse.ListResponseItem(
                     PimpedRandom.nextInt(),
                     PimpedRandom.nextString(),
                     PimpedRandom.nextLong()
             );
-            responseData.add(item);
+            listResponse.add(item);
         }
 
-        Response r = new Response(RequestType.LIST, responseData);
-
-        assertWriteReadIdentity(r);
+        assertWriteReadIdentity(clientServerProtocol, listResponse, false);
     }
 
     @Test
     public void SourcesResponseTest() throws Exception {
-        SourcesResponseData responseData = new SourcesResponseData();
+        SourcesResponse sourcesResponse = new SourcesResponse();
+
         int count = PimpedRandom.nextInt(1000);
         for (int i = 0; i < count; i++) {
-            SourcesResponseData.Source item = new SourcesResponseData.Source(
+            SourcesResponse.Source item = new SourcesResponse.Source(
                     PimpedRandom.nextShort(),
                     InetAddress.getByAddress(PimpedRandom.nextBytes(4)).getHostAddress()
             );
-            responseData.add(item);
+            sourcesResponse.add(item);
         }
 
-        Response r = new Response(RequestType.SOURCES, responseData);
-
-        assertWriteReadIdentity(r);
+        assertWriteReadIdentity(clientServerProtocol, sourcesResponse, false);
     }
 
     @Test
     public void UpdateResponseTest() throws Exception {
-        UpdateResponseData responseData = new UpdateResponseData(PimpedRandom.nextBoolean());
-        Response r = new Response(RequestType.UPDATE, responseData);
-        assertWriteReadIdentity(r);
+        UpdateResponse updateResponse = new UpdateResponse(PimpedRandom.nextBoolean());
+        assertWriteReadIdentity(clientServerProtocol, updateResponse, false);
     }
 
     @Test
     public void UploadResponseTest() throws Exception {
-        UploadResponseData responseData = new UploadResponseData(PimpedRandom.nextInt());
-        Response r = new Response(RequestType.UPLOAD, responseData);
-        assertWriteReadIdentity(r);
+        UploadResponse uploadResponse = new UploadResponse(PimpedRandom.nextInt());
+        assertWriteReadIdentity(clientServerProtocol, uploadResponse, false);
     }
 
     @Test(expected = InvalidProtocolException.class)
@@ -126,7 +106,7 @@ public class ClientServerProtocolTest {
         os.write(42);
 
         InputStream is = new ByteArrayInputStream(os.toByteArray());
-        Response readResponse = ClientServerProtocol.readResponse(RequestType.UPLOAD, is);
+        Message readResponse = clientServerProtocol.readResponse(new UploadQuery(), is);
     }
 
     @Test(expected = InvalidProtocolException.class)
@@ -135,6 +115,6 @@ public class ClientServerProtocolTest {
         os.write(42);
 
         InputStream is = new ByteArrayInputStream(os.toByteArray());
-        Request readRequest = ClientServerProtocol.readRequest(is);
+        Message readRequest = clientServerProtocol.readRequest(is);
     }
 }

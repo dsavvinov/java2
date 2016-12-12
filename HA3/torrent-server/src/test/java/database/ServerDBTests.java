@@ -6,7 +6,6 @@ import database.server.LastID;
 import database.server.Seed;
 import database.server.ServerDatabase;
 import database.server.UserEntity;
-import net.responses.SourcesResponseData;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

@@ -25,10 +25,10 @@ public class ClientDBMock implements ClientDatabase {
         seededFiles.add(allFiles.get(dummyId));
     }
 
-    private static final FileEntity file1 = new FileEntity(0, "file1", 10);
-    private static final FileEntity file2 = new FileEntity(1, "file2", 42);
-    private static final FileEntity file3 = new FileEntity(2, "file3", 228);
-    private static final FileEntity file4 = new FileEntity(3, "file4", 1337);
+    public static final FileEntity file1 = new FileEntity(0, "file1", 10);
+    public static final FileEntity file2 = new FileEntity(1, "file2", 42);
+    public static final FileEntity file3 = new FileEntity(2, "file3", 228);
+    public static final FileEntity file4 = new FileEntity(3, "file4", 1337);
 
     // for convenience and testing purposes
     private static final ArrayList<FileEntity> allFiles =
@@ -52,6 +52,7 @@ public class ClientDBMock implements ClientDatabase {
                     )
                 )
             );
+            curOffset += Constants.BLOCK_SIZE;
         }
 
         ownedParts.put(file.getId(), parts);

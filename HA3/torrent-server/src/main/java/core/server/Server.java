@@ -32,7 +32,7 @@ public class Server {
         serverSocket = new ServerSocket(SERVER_PORT);
         serverSocket.setSoTimeout(1000);    // don't block for too much to be able terminate on demand
         while (true) {
-            Socket clientSocket = null;
+            Socket clientSocket;
             try {
                 clientSocket = serverSocket.accept();
             } catch (SocketTimeoutException ignored) {

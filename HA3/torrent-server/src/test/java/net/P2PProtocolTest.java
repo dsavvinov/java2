@@ -1,62 +1,33 @@
 package net;
 
-import net.requests.GetRequestData;
-import net.requests.Request;
-import net.requests.RequestType;
-import net.requests.StatRequestData;
-import net.responses.Response;
-import net.responses.StatResponseData;
+import net.protocols.Peer2PeerProtocol;
+import net.queries.requests.GetRequest;
+import net.queries.requests.StatRequest;
+import net.queries.responses.StatResponse;
 import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 
 import static net.PimpedRandom.nextInt;
 import static net.PimpedRandom.nextIntArr;
+import static net.Util.assertWriteReadIdentity;
 
 public class P2PProtocolTest {
-    private void assertReadWriteIdentity(Request initialRequest) throws Exception {
-        ByteArrayOutputStream os = new ByteArrayOutputStream(10000);
-        Peer2PeerProtocol.writeRequest(initialRequest, os);
-
-        InputStream is = new ByteArrayInputStream(os.toByteArray());
-        Request readRequest = Peer2PeerProtocol.readRequest(is);
-
-        RequestsComparison.assertRequestsEqual(initialRequest, readRequest);
-    }
-
-    private void assertReadWriteIdentity(Response initialResponse) throws Exception {
-        ByteArrayOutputStream os = new ByteArrayOutputStream(10000);
-        Peer2PeerProtocol.writeResponse(initialResponse, os);
-
-        InputStream is = new ByteArrayInputStream(os.toByteArray());
-        Response readResponse = Peer2PeerProtocol.readResponse(initialResponse.getType(), is);
-
-        ResponseComparison.assertResponsesEqual(initialResponse, readResponse);
-    }
+    private Peer2PeerProtocol peer2PeerProtocol = new Peer2PeerProtocol();
 
     @Test
     public void GetRequestTest() throws Exception {
-        GetRequestData data = new GetRequestData(nextInt(), nextInt());
-        Request getRequest = new Request(RequestType.GET, data);
-
-        assertReadWriteIdentity(getRequest);
+        GetRequest getRequest = new GetRequest(nextInt(), nextInt());
+        assertWriteReadIdentity(peer2PeerProtocol, getRequest, true);
     }
 
     @Test
     public void StatRequestTest() throws Exception {
-        StatRequestData data = new StatRequestData(nextInt());
-        Request statRequest = new Request(RequestType.STAT, data);
-
-        assertReadWriteIdentity(statRequest);
+        StatRequest statRequest = new StatRequest(nextInt());
+        assertWriteReadIdentity(peer2PeerProtocol, statRequest, true);
     }
 
     @Test
     public void StatResponseTest() throws Exception {
-        StatResponseData data = new StatResponseData(nextIntArr());
-        Response statResponse = new Response(RequestType.STAT, data);
-
-        assertReadWriteIdentity(statResponse);
+        StatResponse statResponse = new StatResponse(nextIntArr());
+        assertWriteReadIdentity(peer2PeerProtocol, statResponse, false);
     }
 }

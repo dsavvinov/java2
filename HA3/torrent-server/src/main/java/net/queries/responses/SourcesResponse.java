@@ -1,5 +1,12 @@
-package net.responses;
+package net.queries.responses;
 
+import exceptions.InvalidProtocolException;
+import net.Message;
+import net.MessageHandler;
+import net.Query;
+import net.queries.SourcesQuery;
+
+import java.io.*;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -7,8 +14,76 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SourcesResponseData {
+public class SourcesResponse implements Message {
     private final ArrayList<Source> sources = new ArrayList<>();
+
+    public SourcesResponse() { }
+
+    public SourcesResponse(List<Source> sources) {
+        this.sources.clear();
+        this.sources.addAll(sources);
+    }
+
+    @Override
+    public String toString() {
+        List<String> srcs = sources
+                .stream()
+                .map(Source::toString)
+                .collect(Collectors.toList());
+        return String.join("; ", srcs);
+    }
+
+    @Override
+    public void readFrom(InputStream is) throws InvalidProtocolException {
+        DataInputStream in = new DataInputStream(is);
+        try {
+            int size = in.readInt();
+            for (int i = 0; i < size; i++) {
+                String address = in.readUTF();
+                short clientPort = in.readShort();
+
+                sources.add(new SourcesResponse.Source(clientPort, address));
+            }
+        } catch (IOException e) {
+            throw new InvalidProtocolException("Format error during reading request: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void writeTo(OutputStream os) throws IOException {
+        DataOutputStream out = new DataOutputStream(os);
+        out.writeInt(sources.size());
+
+        for (Source item : sources) {
+            out.writeUTF(item.getHost());
+            out.writeShort(item.getPort());
+        }
+    }
+
+    @Override
+    public Query getQuery() {
+        return new SourcesQuery();
+    }
+
+    @Override
+    public <T> T dispatch(MessageHandler<T> handler) {
+        return handler.handle(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SourcesResponse that = (SourcesResponse) o;
+
+        return sources != null ? sources.equals(that.sources) : that.sources == null;
+    }
+
+    @Override
+    public int hashCode() {
+        return sources != null ? sources.hashCode() : 0;
+    }
 
     public static class Source {
         private final short port;
@@ -52,18 +127,7 @@ public class SourcesResponseData {
         }
     }
 
-    @Override
-    public String toString() {
-        List<String> srcs = sources
-                .stream()
-                .map(Source::toString)
-                .collect(Collectors.toList());
-        return String.join("; ", srcs);
-    }
-
-    /** delegate methods **/
-
-
+    /** Auto-generated methods: delegate ArrayList by items **/
     public void trimToSize() {
         sources.trimToSize();
     }
@@ -191,5 +255,4 @@ public class SourcesResponseData {
     public Stream<Source> parallelStream() {
         return sources.parallelStream();
     }
-    /** end of delegate methods **/
 }
