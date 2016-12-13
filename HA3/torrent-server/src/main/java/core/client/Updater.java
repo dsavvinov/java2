@@ -5,9 +5,8 @@ import database.FileEntity;
 import database.client.ClientDatabase;
 import exceptions.InvalidProtocolException;
 import io.Logger;
-import io.StandardLogger;
 import net.Message;
-import net.protocols.ClientServerProtocol;
+import net.Protocol;
 import net.queries.UpdateQuery;
 import net.queries.requests.UpdateRequest;
 import net.queries.responses.UpdateResponse;
@@ -20,32 +19,50 @@ import java.util.List;
 
 import static utils.Constants.SERVER_ADDRESS;
 import static utils.Constants.SERVER_PORT;
+import static utils.Constants.UPDATE_SOFT_TIMEOUT;
 
-public class Updater implements Runnable {
-    private Logger log = StandardLogger.getInstance();
-    private final Client parent;
-    private final ClientServerProtocol clientServerProtocol = new ClientServerProtocol();
+public class Updater {
+    private volatile boolean shutdown = false;
+    private final Logger log;
+    private final short clientPort;
+    private final Protocol protocol;
+    private final ClientDatabase db;
+    private Thread updateThread;
 
-    public Updater(Client parent, Logger log) {
-        this.parent = parent;
+    public Updater(Logger log, short clientPort, Protocol protocol, ClientDatabase db) {
         this.log = log;
+        this.clientPort = clientPort;
+        this.protocol = protocol;
+        this.db = db;
     }
 
-    @Override
-    public void run() {
-        while (true) {
-            update();
+    public void shutdown() {
+        shutdown = true;
+        updateThread.interrupt();
+
+        while (updateThread.isAlive()) {
             try {
-                Thread.sleep(4 * 50 * 1000);
-            } catch (InterruptedException e) {
-                if (parent.shutdown) {
-                    log.trace("[Updater] Shutting down");
+                updateThread.join();
+            } catch (InterruptedException ignored) { }
+        }
+    }
+
+    public void start() {
+        updateThread = new Thread(() -> {
+            while (!shutdown) {
+                update();
+                try {
+                    Thread.sleep(UPDATE_SOFT_TIMEOUT);
+                } catch (InterruptedException e) {
+                    // just ignore spurious wake-ups;
+                    // rare keep-alive timeouts won't harm too much anyway
                     return;
                 }
-                // just ignore spurious wake-ups;
-                // rare keep-alive timeouts won't harm too much anyway
             }
-        }
+            log.trace("[Updater] Shutting down");
+        });
+
+        updateThread.start();
     }
 
     private void update() {
@@ -54,20 +71,19 @@ public class Updater implements Runnable {
             serverSocket.setSoTimeout(2000);
 
             // Get ids of seeded files
-            ClientDatabase db = DatabaseProvider.getClientDB();
             List<FileEntity> seededFiles = db.listSeededFiles();
             int[] ids = seededFiles.stream().mapToInt(FileEntity::getId).toArray();
 
             // Form update-request
-            Message updateRequest = new UpdateRequest(parent.clientPort, ids);
+            Message updateRequest = new UpdateRequest(clientPort, ids);
 
             // Send request
             log.trace("[Updater] writing request <" + updateRequest.toString() + ">");
-            clientServerProtocol.writeRequest(updateRequest, serverSocket.getOutputStream());
+            protocol.writeRequest(updateRequest, serverSocket.getOutputStream());
             log.trace("[Updater] sent request, waiting for response...");
 
             // Get response
-            Message response = clientServerProtocol.readResponse(new UpdateQuery(), serverSocket.getInputStream());
+            Message response = protocol.readResponse(new UpdateQuery(), serverSocket.getInputStream());
             log.trace("[Updater] got response");
 
             // Check response status

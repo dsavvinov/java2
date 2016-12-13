@@ -1,11 +1,14 @@
 package core;
 
-import core.client.Client;
-import core.server.Server;
+import core.p2p.PeerServer;
+import core.p2p.PeerService;
+import core.p2p.PeerServiceNIOBased;
 import database.DatabaseProvider;
 import database.FileEntity;
 import database.client.FilePart;
+import exceptions.InvalidProtocolException;
 import io.Logger;
+import net.protocols.Peer2PeerProtocol;
 import net.queries.responses.StatResponse;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
@@ -35,13 +38,10 @@ import static org.junit.Assert.*;
 public class P2PLogicTests {
     private final Logger logger = new BlackholeLogger();
     private final ClientDBMock clientdb = new ClientDBMock();
-    private final ServerDBMock serverDBMock = new ServerDBMock();
     private Path testerRoot;
     private Path executorRoot;
-    private Client executor;
-    private Client tester;
-    private final Server server = new Server(logger);
-    private Thread serverThread;
+    private PeerServer executor;
+    private PeerService tester;
 
     @Before
     public void prepare() throws IOException {
@@ -53,45 +53,26 @@ public class P2PLogicTests {
 
         clientdb.ownedParts.put(1, new ArrayList<>(Arrays.asList(fp1, fp4, fp5)));
 
-        PowerMockito.mockStatic(DatabaseProvider.class);
-        PowerMockito.when(DatabaseProvider.getClientDB()).thenReturn(clientdb);
-        PowerMockito.when(DatabaseProvider.getServerDB()).thenReturn(serverDBMock);
         // Set BLOCK_SIZE to 10 for testing
         Whitebox.setInternalState(Constants.class, "BLOCK_SIZE", 10);
 
         testerRoot = Files.createTempDirectory(Paths.get(System.getProperty("user.dir")), null);
         executorRoot = Files.createTempDirectory(Paths.get(System.getProperty("user.dir")), null);
 
-        tester = new Client((short) 10000, testerRoot.toString(), logger);
-        executor = new Client((short) 9999, executorRoot.toString(), logger);
+        tester = new PeerServiceNIOBased(testerRoot.toString(), new Peer2PeerProtocol(), logger);
+        executor = new PeerServer((short) 9999, executorRoot.toString(), logger, clientdb);
 
-        serverThread = new Thread(() -> {
-            try {
-                server.start();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-        serverThread.start();
+        executor.start();
 
         // Give server thread some time to start
         try {
             Thread.sleep(50);
         } catch (InterruptedException ignored) { }
-
-        executor.initClient();
-
-        // Give server thread some time to start
-        try {
-            Thread.sleep(50);
-        } catch (InterruptedException ignored) { }
-
-        tester.initClient();
     }
 
     @Test
-    public void testStatQuery() {
-        StatResponse statResponse = tester.executeStatCommand("localhost", "9999", "1");
+    public void testStatQuery() throws IOException, InvalidProtocolException {
+        StatResponse statResponse = tester.stat("localhost", (short) 9999, 1);
 
         int[] actualParts = statResponse.getParts();
         int[] expectedParts = new int[]{ 0, 3, 4 };
@@ -108,26 +89,25 @@ public class P2PLogicTests {
 
         // Fill file with some content
         try (PrintWriter writer = new PrintWriter(fileAbs.toFile())) {
-            writer.write("Hello world! Some additional content to surely " +
-                    "overcome testing block size of 10 bytes");
+            writer.write("Hello world!!!!");
         }
 
         // Add that file to Executor's db
-        FileEntity fe = new FileEntity(10, file.getFileName().toString(), file.toFile().length());
-        fe.setLocalPath(file.toString());
+        FileEntity fe = new FileEntity(10, file.getFileName().toString(), fileAbs.toFile().length());
+        fe.setLocalPath(fileAbs.toString());
         clientdb.addFile(fe);
         clientdb.addAllPartsOfFile(fe);
 
-        // Execute get commands
-        tester.executeGetCommand("localhost", "9999", "10", "0");
-        tester.executeGetCommand("localhost", "9999", "10", "1");
-
         Path downloadedFile = testerRoot.resolve(file);
+
+        // Execute get commands
+        tester.get("localhost", (short) 9999, 10, 0, downloadedFile.toString(), fileAbs.toFile().length());
+        tester.get("localhost", (short) 9999, 10, 1, downloadedFile.toString(), fileAbs.toFile().length());
 
         String baseFileMD5;
         String downloadedFileMD5;
 
-        try (FileInputStream fis = new FileInputStream(file.toFile())) {
+        try (FileInputStream fis = new FileInputStream(fileAbs.toFile())) {
             baseFileMD5 = DigestUtils.md5Hex(fis);
         }
 
@@ -140,12 +120,7 @@ public class P2PLogicTests {
 
     @After
     public void teardown() throws InterruptedException, IOException {
-        tester.shutdown();
         executor.shutdown();
-        serverThread.interrupt();
-        server.shouldStop = true;
-
-        serverThread.join();
 
         FileUtils.deleteDirectory(executorRoot.toFile());
         FileUtils.deleteDirectory(testerRoot.toFile());

@@ -71,4 +71,10 @@ public class StatResponse implements Message {
         return handler.handle(this);
     }
 
+    @Override
+    public String toString() {
+        return "StatResponse{" +
+                "parts=" + Arrays.toString(parts) +
+                '}';
+    }
 }

@@ -97,8 +97,8 @@ public class ServerDBMongoImpl implements ServerDatabase {
     public void updateFilesForUser(int[] filesIDs, String inetAddress, int port) {
         UserEntity user = getUserEntity(inetAddress, port);
         if (user == null) {
-            UserEntity newUser = new UserEntity((short) port, inetAddress);
-            datastore.save(newUser);
+            user = new UserEntity((short) port, inetAddress);
+            datastore.save(user);
         }
 
         for (int id : filesIDs) {
@@ -110,7 +110,7 @@ public class ServerDBMongoImpl implements ServerDatabase {
             boolean found = false;
             // try to update existing seed
             for (Seed seed : fromDB.getSeeds()) {
-                if (seed.getUser() != null && seed.equals(user)) {
+                if (seed.getUser() != null && seed.getUser().equals(user)) {
                     seed.update();
                     found = true;
                     break;

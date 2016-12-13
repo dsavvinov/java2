@@ -40,6 +40,7 @@ run.enabled = false
 // Call this for each Main class you want to expose with an app script
 createScript(project, 'core.client.ClientCLI', 'client')
 createScript(project, 'core.server.ServerCLI', 'server')
+createScript(project, 'ui.views.MainWindow', 'ui')
 
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'

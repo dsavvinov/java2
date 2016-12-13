@@ -1,10 +1,13 @@
 package core;
 
-import core.client.Client;
+import core.client.ServerServiceNIOBased;
 import core.server.Server;
 import database.DatabaseProvider;
 import database.FileEntity;
+import exceptions.InvalidProtocolException;
 import io.Logger;
+import net.ClientServerProtocolTest;
+import net.protocols.ClientServerProtocol;
 import net.queries.responses.ListResponse;
 import net.queries.responses.SourcesResponse;
 import net.queries.responses.UpdateResponse;
@@ -26,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.HashSet;
 
 import static org.junit.Assert.*;
 
@@ -36,7 +38,7 @@ public class ClientServerLogicTests {
     private final Logger logger = new BlackholeLogger();
     private final ClientDBMock clientdb = new ClientDBMock();
     private final ServerDBMock serverDBMock = new ServerDBMock();
-    private Client tester;
+    private ServerServiceNIOBased tester;
     private final Server executor = new Server(logger);
     private Thread serverThread;
 
@@ -51,7 +53,7 @@ public class ClientServerLogicTests {
         // Set BLOCK_SIZE to 10 for testing
         Whitebox.setInternalState(Constants.class, "BLOCK_SIZE", 10);
 
-        tester = new Client((short) 10000, System.getProperty("user.dir"), logger);
+        tester = new ServerServiceNIOBased((short) 10000, new ClientServerProtocol(), clientdb, logger);
 
         serverThread = new Thread(() -> {
             try {
@@ -66,14 +68,12 @@ public class ClientServerLogicTests {
         try {
             Thread.sleep(50);
         } catch (InterruptedException ignored) { }
-
-        tester.initClient();
     }
 
 
     @Test
-    public void testListQuery() {
-        ListResponse actual = tester.executeListCommand();
+    public void testListQuery() throws IOException, InvalidProtocolException {
+        ListResponse actual = tester.list();
 
         ListResponse expected = new ListResponse();
         // As per defined in ServerDBMock
@@ -89,8 +89,8 @@ public class ClientServerLogicTests {
     }
 
     @Test
-    public void testUpdateQuery() {
-        UpdateResponse updateResponse = tester.executeUpdateCommand();
+    public void testUpdateQuery() throws IOException, InvalidProtocolException {
+        UpdateResponse updateResponse = tester.update();
 
         assertTrue(updateResponse.getStatus());
 
@@ -105,8 +105,8 @@ public class ClientServerLogicTests {
     }
 
     @Test
-    public void testSourcesQuery() {
-        SourcesResponse sourcesResponse = tester.executeSourcesCommand("2");
+    public void testSourcesQuery() throws IOException, InvalidProtocolException {
+        SourcesResponse sourcesResponse = tester.sources(2);
 
         assertTrue(sourcesResponse.contains(ServerDBMock.user1));
         assertTrue(sourcesResponse.contains(ServerDBMock.user2));
@@ -114,7 +114,7 @@ public class ClientServerLogicTests {
     }
 
     @Test
-    public void testUploadQuery() throws IOException {
+    public void testUploadQuery() throws IOException, InvalidProtocolException {
         Path tmpDir = null;
         try {
             // Prepare tmp dir and file
@@ -130,7 +130,7 @@ public class ClientServerLogicTests {
                         "overcome testing block size of 10 bytes");
             }
 
-            UploadResponse uploadResponse = tester.executeUploadCommand(file.toString());
+            UploadResponse uploadResponse = tester.upload(fileAbs);
 
             // ServerDB contained 4 files, and 1 new was added, so new id should be 4 per
             // implementation of `uploadFile()` in ServerDBMock
@@ -150,7 +150,6 @@ public class ClientServerLogicTests {
 
     @After
     public void teardown() throws InterruptedException {
-        tester.shutdown();
         executor.shouldStop = true;
 
         serverThread.join();

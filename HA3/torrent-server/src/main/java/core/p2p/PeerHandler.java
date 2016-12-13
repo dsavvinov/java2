@@ -1,6 +1,5 @@
 package core.p2p;
 
-import database.DatabaseProvider;
 import database.FileEntity;
 import database.client.ClientDatabase;
 import database.client.FilePart;
@@ -28,12 +27,13 @@ public class PeerHandler implements Runnable, MessageHandler<Void> {
     private final String prefix;    // for logging
     private final Peer2PeerProtocol p2p = new Peer2PeerProtocol();
     private final String rootDir;
-
-    public PeerHandler(SocketChannel peerSocket, Logger log, String rootDir) {
+    private final ClientDatabase clientDB;
+    public PeerHandler(SocketChannel peerSocket, Logger log, String rootDir, ClientDatabase clientDatabase) {
         this.peerSocket = peerSocket;
         this.log = log;
         prefix = "[" + peerSocket.socket().getInetAddress().toString() + "]";
         this.rootDir = rootDir;
+        this.clientDB = clientDatabase;
     }
 
     @Override
@@ -61,13 +61,10 @@ public class PeerHandler implements Runnable, MessageHandler<Void> {
     @Override
     public Void handle(GetRequest getRequest) {
         try {
-            ClientDatabase clientDB = DatabaseProvider.getClientDB();
             FileEntity file = clientDB.getFile(getRequest.getId());
             FilePart part = clientDB.getFilePart(getRequest.getId(), getRequest.getPart());
 
-            Path rel = Paths.get(file.getLocalPath());
-            Path cur = Paths.get(rootDir);
-            Path abs = cur.resolve(rel);
+            Path abs = Paths.get(file.getLocalPath());
             FileChannel fc = FileChannel.open(abs);
 
             log.trace("Starting transfer with offset = " + part.getOffset() + ", size = " + part.getSize());
@@ -81,7 +78,6 @@ public class PeerHandler implements Runnable, MessageHandler<Void> {
 
     @Override
     public Void handle(StatRequest statRequest) {
-        ClientDatabase clientDB = DatabaseProvider.getClientDB();
         List<FilePart> fileParts = clientDB.listFileParts(statRequest.getId());
         int[] partsIds = fileParts
                 .stream()
