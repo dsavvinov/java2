@@ -1,0 +1,70 @@
+group 'ru.spbau.mit'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'application'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+// Creates scripts for entry points
+// Subproject must apply application plugin to be able to call this method.
+def createScript(project, mainClass, name) {
+    project.tasks.create(name: name, type: CreateStartScripts) {
+        outputDir       = new File(project.buildDir, 'scripts')
+        mainClassName   = mainClass
+        applicationName = name
+        classpath       = project.tasks[JavaPlugin.JAR_TASK_NAME].outputs.files + project.configurations.runtime
+    }
+    project.tasks[name].dependsOn(project.jar)
+
+    project.applicationDistribution.with {
+        into("bin") {
+            from(project.tasks[name])
+            fileMode = 0755
+        }
+    }
+}
+
+// The next two lines disable the tasks for the primary main which by default
+// generates a script with a name matching the project name.
+// You can leave them enabled but if so you'll need to define mainClassName
+// And you'll be creating your application scripts two different ways which
+// could lead to confusion
+startScripts.enabled = false
+run.enabled = false
+
+// Call this for each Main class you want to expose with an app script
+createScript(project, 'core.client.ClientCLI', 'client')
+createScript(project, 'core.server.ServerCLI', 'server')
+createScript(project, 'ui.views.MainWindow', 'ui')
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+
+    // mongodb
+    compile group: 'org.mongodb', name: 'mongo-java-driver', version: '3.3.0'
+
+    // bson for mongo
+    compile group: 'org.mongodb', name: 'bson', version: '3.3.0'
+
+    // morphia mapper for mongodb
+    compile group: 'org.mongodb.morphia', name: 'morphia', version: '1.2.1'
+
+    // mockito
+    compile group: 'org.mockito', name: 'mockito-all', version: '1.10.19'
+
+    // powermock
+    compile group: 'org.powermock', name: 'powermock-api-mockito', version: '1.6.5'
+
+    // powermock for JUnit
+    compile group: 'org.powermock', name: 'powermock-module-junit4', version: '1.6.5'
+
+    // For testing
+    compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
+    compile group: 'commons-io', name: 'commons-io', version: '2.5'
+
+}
