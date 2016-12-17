@@ -1,0 +1,6 @@
+Array size was iterating from = 1000 to = 10000 with step = 500
+Clients amount = 100
+Delay = 10
+Amount of retries = 10
+Server type = CACHED_POOL_TCP
+Client type = MULTIPLE_TCP

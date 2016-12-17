@@ -1,0 +1,6 @@
+Array size = 5000
+Clients amount = 50
+Delay was iterating from = 2 to = 97 with step = 5
+Amount of retries = 10
+Server type = SINGLE_THREAD_TCP
+Client type = MULTIPLE_TCP

@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+option java_package = "wire";
+option java_outer_classname = "WireMessages";
+
+message Numbers {
+    repeated sint32 items = 1;
+}
